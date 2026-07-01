@@ -77,7 +77,7 @@ def run(alert: dict) -> dict:
     print(f"\n  {forensic_out['evidence_summary']}")
 
     # ── Step 3: Tool-Executor ────────────────────────────────────────────────
-    _banner(3, "Tool-Executor Agent  (OpenShell sandbox)")
+    _banner(3, "Tool-Executor Agent  (Docker sandbox)")
     print(f"  {YELLOW}detonating sample — this may take ~60s...{RESET}")
     executor_out = _run_step("executor", executor.run, {"alert": alert, "forensic": forensic_out})
     _ok("detonation",    executor_out["detonation_status"])
