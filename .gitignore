@@ -1,6 +1,7 @@
 .env
 .venv/
 CLAUDE.md
+HANDOFF.md
 .claude/
 __pycache__/
 *.pyc
