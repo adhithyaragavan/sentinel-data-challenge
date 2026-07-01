@@ -28,7 +28,7 @@ A linear pipeline where each agent hands a structured JSON packet to the next:
        │
        ▼
   ┌─────────────────┐   detonate file, capture blocked C2 beacon
-  │ 3. Tool-Executor│──────────────────────────────► OpenShell sandbox
+  │ 3. Tool-Executor│──────────────────────────────► Docker sandbox
   └─────────────────┘      (default-deny network)
        │
        ▼
@@ -46,7 +46,7 @@ A linear pipeline where each agent hands a structured JSON packet to the next:
 |---|-------|----------------|------------------|
 | 1 | Triage | Classify severity, dedupe alerts | NIM inference |
 | 2 | Forensic Examiner | Build evidence packet, enrich IOCs | NIM inference + threat-intel |
-| 3 | Tool-Executor | Detonate file in isolated sandbox | **OpenShell** (real tool call) |
+| 3 | Tool-Executor | Detonate file in isolated sandbox | **Docker** (real tool call) |
 | 4 | Remediation Planner | Decide action + risk score | NIM inference |
 | 5 | Supervisor | Auto-remediate or escalate | **Slack webhook** |
 
@@ -57,7 +57,7 @@ A linear pipeline where each agent hands a structured JSON packet to the next:
 Phishing email → malicious attachment opened → malware drops and beacons to a C2 IP
 → EDR alert fires → the swarm runs end-to-end → host-isolation decision made within
 seconds, with a full evidence trail. The money shot is step 3: the malware's
-outbound C2 connection is **blocked live** inside the OpenShell sandbox.
+outbound C2 connection is **blocked live** inside the Docker sandbox.
 
 ---
 
@@ -130,7 +130,7 @@ and ground-truth fixtures.
 ```
 agents/          one file per agent (triage, forensic, executor, planner, supervisor)
 mock_data/       synthetic EDR alert + stubbed threat-intel
-sandbox_policy/  OpenShell YAML policy (default-deny network)
+sandbox_policy/  Docker sandbox policy (default-deny network)
 eval/            evaluation harness + ground truth
 docs/            architecture + demo script
 scripts/         run_demo.sh, smoke_test.sh
@@ -142,8 +142,7 @@ pipeline.py      end-to-end orchestration
 
 ## Known limitations
 
-- OpenShell is alpha software — single-developer, single-environment. No concurrent
-  multi-incident handling.
+- Docker sandbox is single-container — no concurrent multi-incident handling.
 - Demo data is synthetic, not a live SIEM feed.
 
 ## License

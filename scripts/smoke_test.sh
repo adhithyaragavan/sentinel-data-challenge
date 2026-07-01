@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test: verify NIM connectivity and OpenShell gateway before the demo.
+# Smoke test: verify NIM connectivity and Docker daemon before the demo.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

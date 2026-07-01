@@ -68,7 +68,7 @@ def run() -> dict:
     _check(checks, f"forensic.malware_family == {gt['forensic_malware_family']}",
            fam == gt["forensic_malware_family"], f"got {fam!r}")
 
-    # Stage 3: Tool-Executor (OpenShell sandbox)
+    # Stage 3: Tool-Executor (Docker sandbox)
     executor_out, latency["executor"] = _timed(
         executor.run, {"alert": alert, "forensic": forensic_out})
     _check(checks, "executor.verdict == malicious",

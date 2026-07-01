@@ -5,7 +5,7 @@ Flow:
   EDR alert JSON
     → Triage Agent          (classify severity, dedupe)
     → Forensic Examiner     (IOCs, threat-intel enrichment)
-    → Tool-Executor         (OpenShell sandbox detonation)
+    → Tool-Executor         (Docker sandbox detonation)
     → Remediation Planner   (action + risk_score via NIM)
     → Supervisor            (auto-remediate or Slack escalation)
 """

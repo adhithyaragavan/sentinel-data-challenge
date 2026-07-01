@@ -12,14 +12,14 @@ and the full run produces an auditable evidence trail.
 
 ```
 EDR alert ─► Triage ─► Forensic ─► Tool-Executor ─► Planner ─► Supervisor ─► action
-             (NIM)      (NIM)       (OpenShell)      (NIM)       (Slack / auto)
+             (NIM)      (NIM)       (Docker sandbox)      (NIM)       (Slack / auto)
 ```
 
 | Stage | Input | Output | External call |
 |-------|-------|--------|---------------|
 | Triage | EDR alert | severity, classification, dedupe flag | NIM |
 | Forensic | alert + triage | IOCs, process tree, threat-intel | NIM + threat-intel |
-| Tool-Executor | alert + forensic | verdict, blocked connections | **OpenShell sandbox** |
+| Tool-Executor | alert + forensic | verdict, blocked connections | **Docker sandbox sandbox** |
 | Planner | all prior | action, risk_score, rationale | NIM |
 | Supervisor | all prior | decision, Slack notification | **Slack webhook** |
 
@@ -66,7 +66,7 @@ following four safety boundaries:
 │  - runs Triage, Forensic, Planner, Supervisor │
 │                                               │
 │   ┌───────────────────────────────────────┐  │
-│   │ OpenShell sandbox (untrusted)          │  │
+│   │ Docker sandbox sandbox (untrusted)          │  │
 │   │  - runs the suspected malware          │  │
 │   │  - default-deny network                │  │
 │   │  - no host credentials                 │  │

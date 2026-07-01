@@ -4,9 +4,8 @@ Target runtime: **~3 minutes**. One terminal, full screen, large font.
 
 ## Before you start (offstage)
 - [ ] `.env` filled in (NIM key + Slack webhook)
-- [ ] `openshell status` reports **Connected**
-- [ ] Base sandbox image already pulled (run one throwaway detonation first — the
-      first pull takes ~60s; subsequent runs are fast)
+- [ ] Docker daemon running (`docker info` succeeds)
+- [ ] Sandbox image pre-pulled (`docker pull python:3.11-slim` or run `./scripts/smoke_test.sh`)
 - [ ] Slack channel visible on a second screen for the escalation reveal
 - [ ] Run `./scripts/smoke_test.sh` once to pre-warm NIM (first call is slow)
 
@@ -32,9 +31,9 @@ Narrate as each stage prints:
    C2 IP is a known Tor exit with a 97% abuse score."
 
 3. **Tool-Executor** — **THIS IS THE MONEY SHOT. Slow down.**
-   "Agent three detonates the actual file inside an NVIDIA OpenShell sandbox with
+   "Agent three detonates the actual file inside a Docker sandbox with
    a default-deny network policy. Watch —"
-   → point at the line: `blocked C2: 185.220.101.47:4444 — connection refused`
+   → point at the line: `blocked C2: 185.220.101.47:4444 — network unreachable`
    "The malware tried to beacon home. The kernel blocked it. That's our proof of
    malice, captured live and safely."
 
@@ -54,7 +53,7 @@ Narrate as each stage prints:
 ## Fallback plan (if something breaks)
 - **NIM slow/down:** you pre-warmed with smoke_test; if it still hangs, show
   `pipeline_output.json` from a prior successful run.
-- **OpenShell hiccup:** the pipeline still completes; the executor reports the
+- **Docker hiccup:** the pipeline still completes; the executor reports the
   beacon failure from the payload itself, so the "blocked" evidence still shows.
 - **Slack fails:** the Supervisor logs the escalation outcome to the terminal even
   without the webhook — narrate that as the audit trail.
