@@ -10,6 +10,10 @@ Two tabs:
                       an optional "re-run live" button.
 
 Run:  streamlit run dashboard/app.py
+
+Presentation note: the visual layer (hero stats, sidebar, WCAG-safe risk badges,
+CSS) is display-only. It does not touch the pipeline logic, data, or GPU story —
+all numbers come from the same cached artifacts (meta.json, results.csv, the queue).
 """
 from __future__ import annotations
 
@@ -37,8 +41,54 @@ _DEMO_QUEUE = os.path.join(_DEMO_DIR, "ranked_queue.parquet")
 _DEMO_CACHE = os.path.join(_DEMO_DIR, "deep_dive")
 _DEMO_META = os.path.join(_DEMO_DIR, "meta.json")
 
-BAND_COLOR = {"critical": "#e34948", "high": "#eb6834",
-              "medium": "#eda100", "low": "#1baf7a"}
+# Risk-band palette. Fills + text colours are WCAG-AA (>=4.5:1) as a badge:
+#   critical white-on-#d03b3b 4.80 | high #0b0b0b-on-#ec835a 7.46
+#   medium   #0b0b0b-on-#fab219 10.7 | low  #0b0b0b-on-#0ca30c 5.87
+BAND_COLOR = {"critical": "#d03b3b", "high": "#ec835a",
+              "medium": "#fab219", "low": "#0ca30c"}
+BAND_TEXT = {"critical": "#ffffff", "high": "#0b0b0b",
+             "medium": "#0b0b0b", "low": "#0b0b0b"}
+BAND_ORDER = ["critical", "high", "medium", "low"]
+
+st.set_page_config(page_title="Sentinel — SOC Triage", page_icon="🛡️",
+                   layout="wide", initial_sidebar_state="auto")
+
+
+def _inject_css():
+    """Presentation-only styling. Selectors target Streamlit 1.58 test-ids (pinned)."""
+    st.markdown("""
+    <style>
+      /* reclaim above-the-fold space */
+      .block-container { padding-top: 2.2rem; padding-bottom: 2rem; }
+      /* hero stat tiles */
+      [data-testid="stMetricValue"] {
+        font-size: 2.3rem; font-weight: 700; font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+      }
+      [data-testid="stMetricLabel"] p { font-size: 0.82rem; color: #52514e; }
+      /* tabs: bold + pill on the active tab, not colour alone */
+      .stTabs [data-baseweb="tab"] { font-size: 1.02rem; padding: 0.35rem 0.9rem; }
+      .stTabs [aria-selected="true"] {
+        font-weight: 700; background: rgba(42,120,214,0.10); border-radius: 8px 8px 0 0;
+      }
+      /* risk badge / legend pill */
+      .sentinel-badge {
+        display: inline-block; padding: 2px 12px; border-radius: 999px;
+        font-size: 0.82em; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap;
+      }
+      /* narrow window / tablet: stack columns instead of cramping */
+      @media (max-width: 640px) {
+        [data-testid="column"] { flex: 1 1 100% !important; min-width: 100% !important; }
+      }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def _badge(band: str) -> str:
+    bg = BAND_COLOR.get(band, "#52514e")
+    fg = BAND_TEXT.get(band, "#ffffff")
+    return (f"<span class='sentinel-badge' style='background:{bg};color:{fg}'>"
+            f"{band.upper()}</span>")
 
 
 def _using_demo() -> bool:
@@ -52,8 +102,6 @@ def _load_meta() -> dict:
             return json.load(f)
     return {}
 
-st.set_page_config(page_title="Sentinel — SOC Triage", page_icon="🛡️", layout="wide")
-
 
 @st.cache_data
 def load_queue() -> pd.DataFrame | None:
@@ -61,6 +109,22 @@ def load_queue() -> pd.DataFrame | None:
     if not os.path.exists(path):
         return None
     return pd.read_parquet(path)
+
+
+@st.cache_data
+def load_results() -> pd.DataFrame | None:
+    csv = os.path.join(_BENCH, "results.csv")
+    return pd.read_csv(csv) if os.path.exists(csv) else None
+
+
+def _best_speedup() -> float | None:
+    """Headline GPU speedup from the cached benchmark (max over all steps/sizes)."""
+    df = load_results()
+    if df is None or "speedup" not in df.columns:
+        return None
+    gpu = df[df.get("backend") == "gpu"] if "backend" in df.columns else df
+    s = gpu["speedup"].dropna()
+    return float(s.max()) if not s.empty else None
 
 
 def load_deep_dive(alert_id: str) -> dict | None:
@@ -72,19 +136,30 @@ def load_deep_dive(alert_id: str) -> dict | None:
     return None
 
 
-def _badge(band: str) -> str:
-    c = BAND_COLOR.get(band, "#52514e")
-    return (f"<span style='background:{c};color:white;padding:2px 10px;"
-            f"border-radius:10px;font-size:0.85em;font-weight:600'>{band.upper()}</span>")
+# ============================ Sidebar (persistent context) ============================
+def sidebar():
+    with st.sidebar:
+        st.markdown("## 🛡️ Sentinel")
+        st.caption("GPU-accelerated SOC alert triage")
+        st.markdown(
+            "**Pipeline**  \nIngest → BigQuery → `cudf.pandas` clean → "
+            "`cuML` rank → agent-swarm deep-dive")
+        st.divider()
+        st.markdown("**Risk bands**")
+        legend = "".join(
+            f"<div style='margin:3px 0'>{_badge(b)}</div>" for b in BAND_ORDER)
+        st.markdown(legend, unsafe_allow_html=True)
+        st.caption("Bands from the model's risk score (≥0.9 / ≥0.7 / ≥0.5 / <0.5). "
+                   "risk ≥ 0.7 auto-escalates to the swarm.")
+        st.divider()
+        st.caption("Reading this: the queue ranks every alert by GPU-model risk; "
+                   "click one to see the agent swarm's rationale and evidence.")
 
 
 # ============================ Alert Queue tab ============================
 def queue_tab():
-    q = load_queue()
-    st.subheader("Ranked alert queue")
-    st.caption("A SOC analyst can't read every alert. cudf.pandas cleans and cuML "
-               "scores the whole stream on GPU; this queue puts the alerts that "
-               "matter now at the top.")
+    with st.spinner("Loading GPU-ranked queue…"):
+        q = load_queue()
     if q is None:
         st.warning("No ranked queue found. Generate it first:\n\n"
                    "```\npython ingest/generate_alerts.py --rows 10000\n"
@@ -92,39 +167,53 @@ def queue_tab():
                    "python analyze/score_model.py --rows 10000\n```")
         return
 
-    # When serving the demo bundle, show the true full-run totals from meta.json
-    # even though only the top slice ships; otherwise compute from the live queue.
+    # Headline stats first (above the fold). Demo bundle shows the true full-run
+    # totals from meta.json even though only the top slice ships.
     meta = _load_meta() if _using_demo() else {}
     total_scored = meta.get("total_scored", len(q))
     total_esc = meta.get("total_escalated",
                          int(q["escalate"].sum()) if "escalate" in q else 0)
     top_risk = meta.get("top_risk_score", float(q["risk_score"].max()))
-    c1, c2, c3 = st.columns(3)
+    speedup = _best_speedup()
+
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Alerts scored", f"{total_scored:,}")
     c2.metric("Escalated (risk ≥ 0.7)", f"{total_esc:,}")
     c3.metric("Top risk score", f"{top_risk:.3f}")
+    c4.metric("GPU speedup", f"{speedup:.1f}×" if speedup else "—",
+              help="Best CPU→GPU wall-clock speedup across the pipeline (GPU Benchmark tab).")
+
+    st.markdown("#### Ranked alert queue")
+    st.caption("A SOC analyst can't read every alert. `cudf.pandas` cleans and `cuML` "
+               "scores the whole stream on GPU; this queue puts the alerts that matter "
+               "now at the top.")
     if _using_demo():
-        st.caption(f"Live demo bundle — showing the top {len(q):,} of {total_scored:,} "
-                   "GPU-ranked alerts. The full stream was scored on an NVIDIA T4 "
-                   "(see the GPU Benchmark tab).")
+        st.caption(f"Live demo bundle — top {len(q):,} of {total_scored:,} GPU-ranked "
+                   "alerts. The full stream was scored on an NVIDIA T4 (see the GPU "
+                   "Benchmark tab).")
 
     show_cols = ["rank", "risk_score", "band", "alert_type", "host_id",
                  "dest_ip", "severity_raw", "escalate", "alert_id"]
     show_cols = [c for c in show_cols if c in q.columns]
-    view = q[show_cols].head(200)
+    view = q[show_cols].head(200).copy()
+    if "escalate" in view.columns:
+        view["escalate"] = view["escalate"].map({1: "⬆ escalate", 0: ""})
 
     def _row_style(row):
         c = BAND_COLOR.get(row["band"], "")
         return [f"background-color:{c}22"] * len(row)  # faint band tint
 
     st.dataframe(
-        view.style.apply(_row_style, axis=1)
-             .format({"risk_score": "{:.3f}"}),
+        view.style.apply(_row_style, axis=1).format({"risk_score": "{:.3f}"}),
         width="stretch", hide_index=True, height=380,
+        column_config={"severity_raw": st.column_config.TextColumn("severity (as-reported)")},
     )
+    st.caption("Raw vendor severity is intentionally inconsistent "
+               "(`critical` / `CRITICAL` / `5` / `high`) — the pipeline normalizes it "
+               "during GPU cleaning. The **risk score** is the model's, not the vendor's.")
 
     st.divider()
-    st.subheader("Inspect an alert")
+    st.markdown("#### Inspect an alert")
     top = q.head(200)
     options = top["alert_id"].tolist()
     rank_by_id = dict(zip(top["alert_id"], top["rank"]))
@@ -143,7 +232,8 @@ def _detail(row):
                     unsafe_allow_html=True)
         for k in ("alert_type", "host_id", "dest_ip", "severity_raw", "file_hash", "timestamp"):
             if k in row and pd.notna(row[k]):
-                st.write(f"**{k}**: {row[k]}")
+                label = "severity (as-reported)" if k == "severity_raw" else k
+                st.write(f"**{label}**: {row[k]}")
 
     with right:
         dd = load_deep_dive(row["alert_id"])
@@ -193,29 +283,44 @@ def _render_deep_dive(dd: dict):
 
 
 # ============================ Benchmark tab ============================
-def benchmark_tab():
-    st.subheader("GPU acceleration proof")
-    st.caption("The cleaning and model steps at 10K / 100K / 1M rows, CPU vs NVIDIA "
-               "T4 GPU. Chart + numbers are cached to disk so this doesn't depend on "
-               "live GPU access.")
-    png = os.path.join(_BENCH, "cpu_vs_gpu.png")
-    csv = os.path.join(_BENCH, "results.csv")
+def _speedup_at(df, size, step):
+    row = df[(df.get("backend") == "gpu") & (df["size"] == size) & (df["step"] == step)]
+    s = row["speedup"].dropna() if not row.empty else pd.Series(dtype=float)
+    return float(s.iloc[0]) if not s.empty else None
 
+
+def benchmark_tab():
+    st.markdown("#### GPU acceleration proof")
+    st.caption("Cleaning and model steps at 10K / 100K / 1M rows, CPU vs NVIDIA T4 GPU. "
+               "Chart + numbers are cached to disk so this doesn't depend on live GPU access.")
+
+    df = load_results()
+
+    # Hero speedup callout ABOVE the chart — the single most important evidence.
+    if df is not None:
+        best = _best_speedup()
+        clean_1m = _speedup_at(df, 1_000_000, "clean")
+        model_1m = _speedup_at(df, 1_000_000, "model")
+        h1, h2, h3 = st.columns(3)
+        h1.metric("Best speedup", f"{best:.1f}×" if best else "—")
+        h2.metric("Cleaning @ 1M rows", f"{clean_1m:.1f}×" if clean_1m else "—")
+        h3.metric("Model @ 1M rows", f"{model_1m:.1f}×" if model_1m else "—")
+        st.caption("Same code, same model — only the compute backend differs. GPU pulls "
+                   "ahead as the data scales; held-out AUC matches CPU (quality preserved).")
+
+    png = os.path.join(_BENCH, "cpu_vs_gpu.png")
     if os.path.exists(png):
         st.image(png, width="stretch")
     else:
         st.warning("No cached chart yet. Run `python benchmarks/cpu_vs_gpu.py`.")
 
-    if os.path.exists(csv):
-        df = pd.read_csv(csv)
-        gpu = df[df.backend == "gpu"]
-        if not gpu.empty and gpu["speedup"].notna().any():
-            st.metric("Best speedup", f"{gpu['speedup'].max():.1f}×")
-        st.dataframe(df, width="stretch", hide_index=True)
+    if df is not None:
+        with st.expander("Full results table"):
+            st.dataframe(df, width="stretch", hide_index=True)
 
     if _DEMO:
-        st.caption("These are cached results from a real NVIDIA T4 run. The live "
-                   "re-run control is disabled in the hosted demo (no GPU attached).")
+        st.caption("Cached results from a real NVIDIA T4 run. The live re-run control is "
+                   "disabled in the hosted demo (no GPU attached).")
         return
 
     st.divider()
@@ -233,10 +338,22 @@ def benchmark_tab():
 
 
 # ============================ Layout ============================
-st.title("🛡️ Sentinel — GPU-accelerated SOC triage")
-st.caption("Ingest → BigQuery → cudf.pandas clean → cuML rank → agent-swarm deep-dive")
+_inject_css()
+sidebar()
 
-tab1, tab2 = st.tabs(["Alert Queue", "GPU Benchmark"])
+st.title("🛡️ Sentinel — GPU-accelerated SOC triage")
+_meta = _load_meta() if _using_demo() else {}
+_scored = _meta.get("total_scored")
+_spd = _best_speedup()
+_bits = []
+if _scored:
+    _bits.append(f"**{_scored:,}** EDR alerts triaged")
+if _spd:
+    _bits.append(f"up to **{_spd:.1f}× faster** on GPU")
+_bits.append("top threats auto-escalated to the agent swarm")
+st.markdown(" • ".join(_bits))
+
+tab1, tab2 = st.tabs(["📋 Alert Queue", "⚡ GPU Benchmark"])
 with tab1:
     queue_tab()
 with tab2:
