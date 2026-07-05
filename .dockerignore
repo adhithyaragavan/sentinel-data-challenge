@@ -1,0 +1,33 @@
+# Keep the build context small and secret-free.
+# KEEP (do not add here): dashboard/** (incl. demo_data/*.parquet),
+# benchmarks/cpu_vs_gpu.png, benchmarks/results.csv — the Dockerfile COPYs these.
+.git/
+.venv/
+data/
+deep_dive_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.ndjson
+
+# secrets — never ship
+.env
+.env.*
+
+# pipeline code not needed by the display-only image
+agents/
+eval/
+ingest/
+clean/
+analyze/
+infra/
+docs/
+mock_data/
+sandbox_policy/
+scripts/
+nemoclaw.py
+pipeline.py
+requirements-gpu.txt
+benchmarks/cpu_vs_gpu.py
+.DS_Store
+.claude/

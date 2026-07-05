@@ -1,0 +1,120 @@
+{
+  "triage": {
+    "alert_id": "EDR-2024-0286486",
+    "severity": "high",
+    "classification": "Malicious rundll32 loader executing from temp and startup with persistence via registry, contacting external C2 in Belarus",
+    "confidence": 0.93,
+    "duplicate": false,
+    "summary": "The workstation executed a unsigned rundll32_x.exe from the temp directory, which was also placed in the startup folder and registered to run at logon. It established a TCP connection to a Belarusian IP on port 53, indicating possible DNS-based C2 beaconing. This behavior matches persistence (T1547.001) and command-and-control (T1071.001) techniques, posing a high risk of remote code execution and data exfiltration.",
+    "mitre": [
+      "T1071.001",
+      "T1059",
+      "T1547.001"
+    ]
+  },
+  "forensic": {
+    "alert_id": "EDR-2024-0286486",
+    "process_tree": [
+      {
+        "pid": 950,
+        "name": "excel.exe",
+        "role": "parent"
+      },
+      {
+        "pid": 2936,
+        "name": "rundll32_x.exe",
+        "path": "C:\\Users\\mchen\\AppData\\Local\\Temp\\rundll32_x.exe",
+        "command_line": "C:\\Users\\mchen\\AppData\\Local\\Temp\\rundll32_x.exe --silent",
+        "signed": false,
+        "sha256": "bad000000000000000000000000000000000000000000000000000000000102",
+        "role": "child (suspicious)"
+      }
+    ],
+    "iocs": [
+      {
+        "type": "hash",
+        "value": "bad000000000000000000000000000000000000000000000000000000000102",
+        "context": "rundll32_x.exe"
+      },
+      {
+        "type": "ip",
+        "value": "91.219.236.53",
+        "context": "port 53 / TCP"
+      },
+      {
+        "type": "file_path",
+        "value": "C:\\Users\\mchen\\AppData\\Local\\Temp\\rundll32_x.exe",
+        "context": "CREATE"
+      },
+      {
+        "type": "file_path",
+        "value": "C:\\Users\\mchen\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\rundll32_x.exe",
+        "context": "CREATE"
+      },
+      {
+        "type": "registry_key",
+        "value": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "context": "SET \u2192 C:\\Users\\mchen\\AppData\\Local\\Temp\\rundll32_x.exe"
+      }
+    ],
+    "hash_intel": null,
+    "ip_intel": null,
+    "mitre": [
+      "T1071.001",
+      "T1059",
+      "T1547.001"
+    ],
+    "evidence_summary": "The malicious rundll32_x.exe loader was observed executing from the user's Temp directory and was launched by excel.exe, indicating a rundll32 loader used to run malicious code. It persisted via both a Registry Run key (HKCU\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run) and a Startup folder shortcut, ensuring execution at user logon. The loader contacted a C2 server at IP 91.219.236.53 (Belarus) over TCP port 53, typical of covert command-and-control using DNS tunneling. Immediate containment should isolate WORKSTATION-003, terminate the rundll32_x.exe process, and block outbound traffic to 91.219.236.53."
+  },
+  "executor": {
+    "alert_id": "EDR-2024-0286486",
+    "sandbox_name": "sentinel-detonation",
+    "detonation_status": "completed",
+    "blocked_connections": [
+      {
+        "dst_host": "91.219.236.53",
+        "dst_port": "53",
+        "deny_reason": "network unreachable \u2014 container running with --network none",
+        "raw": "[malware] beacon failed: [Errno 101] Network is unreachable"
+      }
+    ],
+    "sandbox_log_excerpt": "[malware] attempting beacon to 185.220.101.47:4444\n[malware] beacon failed: [Errno 101] Network is unreachable\n[malware] dropped persistence to /tmp/svchost32.exe\n",
+    "verdict": "suspicious",
+    "verdict_reason": "1 blocked outbound connection(s) observed but hash is unconfirmed."
+  },
+  "planner": {
+    "alert_id": "EDR-2024-0286486",
+    "action": "isolate_host",
+    "target": "WORKSTATION-003",
+    "risk_score": 0.95,
+    "confidence": 0.95,
+    "rationale": "The host shows high-severity malicious activity: a rundll32 loader with persistence via HKCU Run key, confirmed C2 IP in Belarus, and a triage confidence of 0.93. Although the sandbox beacon failed due to network isolation, the persistence mechanism and outbound attempt indicate active malicious behavior. Isolating the host immediately contains the threat, preventing further C2 communication and potential lateral movement while allowing safe forensic investigation.",
+    "secondary_actions": [
+      {
+        "action": "block_ip",
+        "target": "91.219.236.53",
+        "reason": "Block the malicious C2 IP to stop any future outbound communications from the infected host."
+      },
+      {
+        "action": "kill_process",
+        "target": "rundll32.exe",
+        "reason": "Terminate the malicious loader process to halt ongoing malicious activity on the host."
+      }
+    ]
+  },
+  "supervisor": {
+    "alert_id": "EDR-2024-0286486",
+    "decision": "escalated",
+    "action": "isolate_host",
+    "target": "WORKSTATION-003",
+    "risk_score": 0.95,
+    "threshold": 0.7,
+    "slack_notified": true,
+    "outcome": "Escalated to Slack for human approval. Risk score 0.95 >= threshold 0.7. Recommended: 'isolate_host' on 'WORKSTATION-003'."
+  },
+  "_queue": {
+    "rank": 3,
+    "risk_score": 0.9244,
+    "band": "critical"
+  }
+}

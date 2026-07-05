@@ -2,6 +2,13 @@
 
 **NVIDIA Accelerated Data Intelligence Challenge submission.**
 
+### 🔗 Live demo: **https://sentinel-dashboard-260796599985.us-central1.run.app**
+
+The hosted dashboard (Google Cloud Run) serves a committed demo bundle: the top of a
+**953,498-alert** GPU-ranked queue and **real** agent-swarm deep-dives, plus the real
+CPU-vs-NVIDIA-T4 acceleration chart. (Scales to zero — the first visit may cold-start
+for ~5–10s.)
+
 A data-intelligence pipeline that helps a Security Operations Center (SOC) analyst
 survive alert volume: it ingests a large stream of EDR alerts, cleans and scores the
 **entire stream on GPU** to produce a ranked risk queue, and hands only the top alerts

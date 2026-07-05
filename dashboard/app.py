@@ -28,24 +28,47 @@ _CACHE = os.path.join(_ROOT, "deep_dive_cache")
 _BENCH = os.path.join(_ROOT, "benchmarks")
 _QUEUE = os.path.join(_DATA, "ranked_queue.parquet")
 
+# Demo bundle: a small committed queue + real swarm deep-dives, used when the live
+# pipeline outputs aren't present (e.g. the Cloud Run deployment). SENTINEL_DEMO=1
+# also hides GPU-only controls that can't run without the T4.
+_DEMO = os.environ.get("SENTINEL_DEMO") == "1"
+_DEMO_DIR = os.path.join(_HERE, "demo_data")
+_DEMO_QUEUE = os.path.join(_DEMO_DIR, "ranked_queue.parquet")
+_DEMO_CACHE = os.path.join(_DEMO_DIR, "deep_dive")
+_DEMO_META = os.path.join(_DEMO_DIR, "meta.json")
+
 BAND_COLOR = {"critical": "#e34948", "high": "#eb6834",
               "medium": "#eda100", "low": "#1baf7a"}
+
+
+def _using_demo() -> bool:
+    """True when we're serving the committed demo bundle (no live queue present)."""
+    return not os.path.exists(_QUEUE) and os.path.exists(_DEMO_QUEUE)
+
+
+def _load_meta() -> dict:
+    if os.path.exists(_DEMO_META):
+        with open(_DEMO_META) as f:
+            return json.load(f)
+    return {}
 
 st.set_page_config(page_title="Sentinel — SOC Triage", page_icon="🛡️", layout="wide")
 
 
 @st.cache_data
 def load_queue() -> pd.DataFrame | None:
-    if not os.path.exists(_QUEUE):
+    path = _QUEUE if os.path.exists(_QUEUE) else _DEMO_QUEUE
+    if not os.path.exists(path):
         return None
-    return pd.read_parquet(_QUEUE)
+    return pd.read_parquet(path)
 
 
 def load_deep_dive(alert_id: str) -> dict | None:
-    path = os.path.join(_CACHE, f"{alert_id}.json")
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
+    for base in (_CACHE, _DEMO_CACHE):
+        path = os.path.join(base, f"{alert_id}.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return json.load(f)
     return None
 
 
@@ -69,11 +92,21 @@ def queue_tab():
                    "python analyze/score_model.py --rows 10000\n```")
         return
 
-    n_esc = int(q["escalate"].sum()) if "escalate" in q else 0
+    # When serving the demo bundle, show the true full-run totals from meta.json
+    # even though only the top slice ships; otherwise compute from the live queue.
+    meta = _load_meta() if _using_demo() else {}
+    total_scored = meta.get("total_scored", len(q))
+    total_esc = meta.get("total_escalated",
+                         int(q["escalate"].sum()) if "escalate" in q else 0)
+    top_risk = meta.get("top_risk_score", float(q["risk_score"].max()))
     c1, c2, c3 = st.columns(3)
-    c1.metric("Alerts scored", f"{len(q):,}")
-    c2.metric("Escalated (risk ≥ 0.7)", f"{n_esc:,}")
-    c3.metric("Top risk score", f"{q['risk_score'].max():.3f}")
+    c1.metric("Alerts scored", f"{total_scored:,}")
+    c2.metric("Escalated (risk ≥ 0.7)", f"{total_esc:,}")
+    c3.metric("Top risk score", f"{top_risk:.3f}")
+    if _using_demo():
+        st.caption(f"Live demo bundle — showing the top {len(q):,} of {total_scored:,} "
+                   "GPU-ranked alerts. The full stream was scored on an NVIDIA T4 "
+                   "(see the GPU Benchmark tab).")
 
     show_cols = ["rank", "risk_score", "band", "alert_type", "host_id",
                  "dest_ip", "severity_raw", "escalate", "alert_id"]
@@ -179,6 +212,11 @@ def benchmark_tab():
         if not gpu.empty and gpu["speedup"].notna().any():
             st.metric("Best speedup", f"{gpu['speedup'].max():.1f}×")
         st.dataframe(df, width="stretch", hide_index=True)
+
+    if _DEMO:
+        st.caption("These are cached results from a real NVIDIA T4 run. The live "
+                   "re-run control is disabled in the hosted demo (no GPU attached).")
+        return
 
     st.divider()
     if st.button("↻ Re-run benchmark live", help="Runs benchmarks/cpu_vs_gpu.py "

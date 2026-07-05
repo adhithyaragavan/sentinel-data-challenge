@@ -18,3 +18,8 @@ data/
 deep_dive_cache/
 # NOTE: benchmarks/results.csv and benchmarks/cpu_vs_gpu.png are the demo
 # cache and ARE committed on purpose — do not ignore them.
+
+# The hosted-dashboard demo bundle IS tracked (small, committed on purpose):
+# a trimmed top-1000 queue + real swarm deep-dives, overriding the *.parquet rule.
+!dashboard/demo_data/
+!dashboard/demo_data/**

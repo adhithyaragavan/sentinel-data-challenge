@@ -1,0 +1,7 @@
+{
+  "total_scored": 953498,
+  "total_escalated": 40083,
+  "top_risk_score": 0.9257,
+  "shipped_rows": 1000,
+  "source": "1M-row local CPU run (seed 42); GPU-accelerated equivalent on the T4 (see GPU Benchmark tab)"
+}

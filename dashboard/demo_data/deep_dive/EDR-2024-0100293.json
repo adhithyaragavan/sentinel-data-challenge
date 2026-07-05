@@ -1,0 +1,125 @@
+{
+  "triage": {
+    "alert_id": "EDR-2024-0100293",
+    "severity": "high",
+    "classification": "Malicious svchost32.exe RAT with persistence via Run key and UDP C2 beacon",
+    "confidence": 0.93,
+    "duplicate": false,
+    "summary": "The non-standard svchost32.exe was created in the user's Temp folder, copied to the Startup folder, and added to HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run for persistence. It spawned from msedge.exe and established a UDP connection to a Belarusian IP on port 8080, indicating C2 beaconing. This behavior aligns with T1547.001, T1071.001, and T1059 MITRE techniques, representing a high-impact threat.",
+    "mitre": [
+      "T1071.001",
+      "T1059",
+      "T1547.001"
+    ]
+  },
+  "forensic": {
+    "alert_id": "EDR-2024-0100293",
+    "process_tree": [
+      {
+        "pid": 477,
+        "name": "msedge.exe",
+        "role": "parent"
+      },
+      {
+        "pid": 8799,
+        "name": "svchost32.exe",
+        "path": "C:\\Users\\lgarcia\\AppData\\Local\\Temp\\svchost32.exe",
+        "command_line": "C:\\Users\\lgarcia\\AppData\\Local\\Temp\\svchost32.exe --silent",
+        "signed": false,
+        "sha256": "bad000000000000000000000000000000000000000000000000000000000081",
+        "role": "child (suspicious)"
+      }
+    ],
+    "iocs": [
+      {
+        "type": "hash",
+        "value": "bad000000000000000000000000000000000000000000000000000000000081",
+        "context": "svchost32.exe"
+      },
+      {
+        "type": "ip",
+        "value": "185.220.101.218",
+        "context": "port 8080 / UDP"
+      },
+      {
+        "type": "file_path",
+        "value": "C:\\Users\\lgarcia\\AppData\\Local\\Temp\\svchost32.exe",
+        "context": "CREATE"
+      },
+      {
+        "type": "file_path",
+        "value": "C:\\Users\\lgarcia\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\svchost32.exe",
+        "context": "CREATE"
+      },
+      {
+        "type": "registry_key",
+        "value": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "context": "SET \u2192 C:\\Users\\lgarcia\\AppData\\Local\\Temp\\svchost32.exe"
+      }
+    ],
+    "hash_intel": null,
+    "ip_intel": null,
+    "mitre": [
+      "T1071.001",
+      "T1059",
+      "T1547.001"
+    ],
+    "evidence_summary": "The malicious svchost32.exe was observed executing from %TEMP% and launched via a parent msedge.exe process. It maintains persistence by creating a Run key entry and a shortcut in the Startup folder that points to the same executable. The malware communicates with a UDP beacon on port 8080 to the C2 address 185.220.101.218. Immediate containment should quarantine the host and block outbound UDP traffic to that IP while removing the Run key and startup shortcut."
+  },
+  "executor": {
+    "alert_id": "EDR-2024-0100293",
+    "sandbox_name": "sentinel-detonation",
+    "detonation_status": "completed",
+    "blocked_connections": [
+      {
+        "dst_host": "185.220.101.218",
+        "dst_port": "8080",
+        "deny_reason": "network unreachable \u2014 container running with --network none",
+        "raw": "[malware] beacon failed: [Errno 101] Network is unreachable"
+      }
+    ],
+    "sandbox_log_excerpt": "[malware] attempting beacon to 185.220.101.47:4444\n[malware] beacon failed: [Errno 101] Network is unreachable\n[malware] dropped persistence to /tmp/svchost32.exe\n",
+    "verdict": "suspicious",
+    "verdict_reason": "1 blocked outbound connection(s) observed but hash is unconfirmed."
+  },
+  "planner": {
+    "alert_id": "EDR-2024-0100293",
+    "action": "isolate_host",
+    "target": "SERVER-211",
+    "risk_score": 0.9,
+    "confidence": 0.93,
+    "rationale": "The endpoint shows high-confidence malicious activity with persistence via a Run key, a known C2 IP, and multiple MITRE techniques indicating active command-and-control. Isolation prevents further beaconing and lateral movement while allowing remediation.",
+    "secondary_actions": [
+      {
+        "action": "block_ip",
+        "target": "185.220.101.218",
+        "reason": "C2 server is confirmed malicious; blocking prevents future communications."
+      },
+      {
+        "action": "quarantine_file",
+        "target": "C:\\Windows\\Temp\\svchost32.exe",
+        "reason": "Malicious executable with persistence; isolating file stops execution."
+      },
+      {
+        "action": "kill_process",
+        "target": "svchost32.exe",
+        "reason": "Terminate the running RAT process to stop immediate beaconing."
+      }
+    ]
+  },
+  "supervisor": {
+    "alert_id": "EDR-2024-0100293",
+    "decision": "escalated",
+    "action": "isolate_host",
+    "target": "SERVER-211",
+    "risk_score": 0.9,
+    "threshold": 0.7,
+    "slack_notified": true,
+    "outcome": "Escalated to Slack for human approval. Risk score 0.90 >= threshold 0.7. Recommended: 'isolate_host' on 'SERVER-211'."
+  },
+  "_queue": {
+    "rank": 2,
+    "risk_score": 0.9251,
+    "band": "critical"
+  }
+}
