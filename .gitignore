@@ -9,3 +9,12 @@ __pycache__/
 .DS_Store
 pipeline_output.json
 eval/results.json
+
+# Data intelligence pipeline — local intermediates (large, regenerable)
+data/
+*.parquet
+*.ndjson
+# Cached deep-dive swarm outputs keyed by alert_id
+deep_dive_cache/
+# NOTE: benchmarks/results.csv and benchmarks/cpu_vs_gpu.png are the demo
+# cache and ARE committed on purpose — do not ignore them.

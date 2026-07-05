@@ -1,0 +1,21 @@
+# =====================================================================
+# GPU-only dependencies (NVIDIA RAPIDS) — install on the T4 VM ONLY.
+# =====================================================================
+# These do NOT install on macOS (no CUDA). The Mac runs the CPU baseline
+# and the dashboard from requirements.txt; the T4 VM installs BOTH files.
+#
+# Install on the VM (CUDA 12.x, matched to the driver on the T4 image):
+#
+#   pip install \
+#     --extra-index-url=https://pypi.nvidia.com \
+#     cudf-cu12 cuml-cu12
+#
+# (Or via conda: `conda install -c rapidsai -c conda-forge -c nvidia \
+#   cudf cuml python=3.11 cuda-version=12.*` — see infra/provision_vm.sh.)
+#
+# Pin the RAPIDS release train to match the VM's CUDA/driver. 24.x targets
+# CUDA 12.x, which the Deep Learning VM T4 image ships.
+# ---------------------------------------------------------------------
+--extra-index-url=https://pypi.nvidia.com
+cudf-cu12>=24.10
+cuml-cu12>=24.10
