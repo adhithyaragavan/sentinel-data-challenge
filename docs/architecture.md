@@ -1,5 +1,29 @@
 # Sentinel — Architecture & Safety Design
 
+> **Scope note.** This document describes the **5-agent deep-dive swarm**. In the
+> NVIDIA Accelerated Data Intelligence Challenge build, the swarm is the *last* stage
+> of a larger GPU-accelerated data pipeline (ingest → Cloud Storage → BigQuery →
+> cudf.pandas clean → cuML rank → **swarm deep-dive** → dashboard). The swarm files are
+> reused unchanged; see the top-level [`README.md`](../README.md) for the full pipeline
+> and the CPU-vs-GPU acceleration proof. The safety design below still governs the
+> deep-dive stage.
+
+## Where the swarm fits (data pipeline)
+
+The swarm is expensive (LLM + Docker per alert) and can't run on every alert at
+volume. Upstream, a GPU-accelerated pipeline scores the **whole** alert stream and
+ranks it, so the swarm only ever runs on the top of the queue:
+
+```
+generate → Cloud Storage → BigQuery → cudf.pandas clean → cuML escalation model
+   → ranked risk queue → [top-K] → to_pipeline_alert() → pipeline.run()  ◄── this swarm
+   → dashboard (queue + rationale + acceleration chart)
+```
+
+The cuML model emits `risk_score ∈ [0,1]` using the **same** escalation contract the
+swarm's Planner/Supervisor use (`≥ 0.7 → escalate`, bands from `agents/planner.py`), so
+GPU pre-triage and agent deep-dive speak one risk language.
+
 ## Design goal
 
 Compress the human SOC triage-to-containment loop — normally 20–40 minutes of
