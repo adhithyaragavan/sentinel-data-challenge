@@ -1,5 +1,5 @@
 # Slim runtime deps for the hosted dashboard (Cloud Run) — display only.
 # The dashboard reads cached artifacts; it needs no GPU, NIM, GCP, or ML libs.
-streamlit>=1.30
+streamlit==1.58.0        # pinned: the CSS selectors target this version's test-ids
 pandas>=2.1
 pyarrow>=14
