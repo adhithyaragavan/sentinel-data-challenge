@@ -49,7 +49,11 @@ gcloud services enable \
 ## 4. Set a budget alert BEFORE provisioning anything billable
 
 ```bash
-# ~$50 threshold with alerts at 50/90/100%. Catches runaway GPU spend early.
+# The Budgets API rejects an amount whose currency doesn't match the billing
+# account's own currency (INVALID_ARGUMENT, no useful message) — check first:
+gcloud billing accounts describe "$BILLING_ACCOUNT_ID" --format="value(currencyCode)"
+
+# ~$50 threshold (converted to the billing account's currency) at 50/90/100%.
 gcloud billing budgets create \
   --billing-account="$BILLING_ACCOUNT_ID" \
   --display-name="sentinel-budget-50" \
@@ -57,6 +61,8 @@ gcloud billing budgets create \
   --threshold-rule=percent=0.5 \
   --threshold-rule=percent=0.9 \
   --threshold-rule=percent=1.0
+# ^ if currencyCode above isn't USD, replace 50USD with the equivalent amount
+#   in that currency, e.g. --budget-amount=4150INR for an INR-billed account.
 ```
 
 ## 5. Cloud Storage bucket (landing zone for raw synthetic alerts)
@@ -92,6 +98,33 @@ BQ_TABLE=alerts_raw
 The VM is where the GPU steps and the demo run. Provisioning is an **approval gate** —
 see `infra/provision_vm.sh`. It carries the one real (trial-covered) cost, so the exact
 `gcloud compute instances create ...` command is reviewed before it runs.
+
+Two gotchas hit while building this, in order — expect to hit the first, maybe the second:
+
+1. **`GPUS_ALL_REGIONS` project quota is 0 by default**, even though per-region quotas
+   (e.g. `NVIDIA_T4_GPUS` in `us-central1`) show `limit=1`. That per-region number is a
+   template ceiling, not a grant — the global 0 blocks provisioning everywhere until
+   raised. Fix (often auto-approved in seconds for a request this small):
+   ```bash
+   gcloud services enable cloudquotas.googleapis.com --project="$PROJECT_ID"
+   gcloud components install alpha
+   gcloud alpha quotas preferences create \
+     --service=compute.googleapis.com --project="$PROJECT_ID" \
+     --quota-id=GPUS-ALL-REGIONS-per-project --preferred-value=1 \
+     --justification="Single T4 for a GPU-acceleration benchmark, stopped when idle." \
+     --preference-id="${PROJECT_ID}-gpus-all-regions"
+   gcloud alpha quotas preferences describe "${PROJECT_ID}-gpus-all-regions" \
+     --project="$PROJECT_ID" --format="value(quotaConfig.grantedValue)"
+   ```
+   If instead this comes back ineligible or rejected, the fallback is upgrading the
+   billing account from free-trial to a paid account (Console → Billing → Overview →
+   "Upgrade") — trial accounts are frequently blocked from GPU quota by policy.
+
+2. **T4 capacity is genuinely exhausted in specific zones** (`ZONE_RESOURCE_POOL_EXHAUSTED`)
+   — a real, transient shortage, independent of quota. `infra/provision_vm.sh` defaults
+   to `us-east1-c` (worked at build time); if that zone is also exhausted, retry with
+   `ZONE=<zone> bash infra/provision_vm.sh --yes` against another candidate
+   (`us-central1-a/b/c/f`, `us-west1-a/b`, `europe-west4-a/b`, `asia-southeast1-a/b`).
 
 ---
 
