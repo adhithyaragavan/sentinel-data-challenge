@@ -1,0 +1,5 @@
+size,step,backend,seconds,speedup,auc,f1,precision,recall
+10000,clean,cpu,0.043,,,,,
+10000,model,cpu,0.104,,0.9374,0.5604,0.6687,0.4823
+100000,clean,cpu,0.221,,,,,
+100000,model,cpu,0.479,,0.9431,0.5889,0.6807,0.5189
