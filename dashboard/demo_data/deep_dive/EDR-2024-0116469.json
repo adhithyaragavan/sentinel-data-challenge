@@ -1,0 +1,115 @@
+{
+  "triage": {
+    "alert_id": "EDR-2024-0116469",
+    "severity": "high",
+    "classification": "Malicious Teams executable used for persistence and C2 beacon",
+    "confidence": 0.87,
+    "duplicate": false,
+    "summary": "An unsigned Teams.exe copied to the user's Temp directory was executed with a silent flag, then added to both the Startup folder and the Run registry key for persistence. It established an outbound UDP connection to a known North Korean IP address (45.153.160.49) on port 53, indicating potential C2 beaconing. This behavior aligns with MITRE techniques T1547.001, T1071.001, and T1059, reflecting a high-risk compromise.",
+    "mitre": [
+      "T1071.001",
+      "T1059",
+      "T1547.001"
+    ]
+  },
+  "forensic": {
+    "alert_id": "EDR-2024-0116469",
+    "process_tree": [
+      {
+        "pid": 388,
+        "name": "chrome.exe",
+        "role": "parent"
+      },
+      {
+        "pid": 5093,
+        "name": "Teams.exe",
+        "path": "C:\\Users\\administrator\\AppData\\Local\\Temp\\Teams.exe",
+        "command_line": "C:\\Users\\administrator\\AppData\\Local\\Temp\\Teams.exe --silent",
+        "signed": false,
+        "sha256": "bad000000000000000000000000000000000000000000000000000000000081",
+        "role": "child (suspicious)"
+      }
+    ],
+    "iocs": [
+      {
+        "type": "hash",
+        "value": "bad000000000000000000000000000000000000000000000000000000000081",
+        "context": "Teams.exe"
+      },
+      {
+        "type": "ip",
+        "value": "45.153.160.49",
+        "context": "port 53 / UDP"
+      },
+      {
+        "type": "file_path",
+        "value": "C:\\Users\\administrator\\AppData\\Local\\Temp\\Teams.exe",
+        "context": "CREATE"
+      },
+      {
+        "type": "file_path",
+        "value": "C:\\Users\\administrator\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Teams.exe",
+        "context": "CREATE"
+      },
+      {
+        "type": "registry_key",
+        "value": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "context": "SET \u2192 C:\\Users\\administrator\\AppData\\Local\\Temp\\Teams.exe"
+      }
+    ],
+    "hash_intel": null,
+    "ip_intel": null,
+    "mitre": [
+      "T1071.001",
+      "T1059",
+      "T1547.001"
+    ],
+    "evidence_summary": "The malicious Teams.exe (hash bad000000000000000000000000000000000000000000000000000000000000081) was observed executing from %TEMP% and establishing a UDP beacon to 45.153.160.49 on port 53. It persists via both a Run key (HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run) pointing to the same executable and a Startup folder shortcut, ensuring execution at user logon. The process was launched from chrome.exe as a child, indicating a living-off-the-land technique, and the binary is unsigned with a known malicious hash. Immediate containment should block outbound UDP traffic to 45.153.160.49 and quarantine the file at C:\\Users\\administrator\\AppData\\Local\\Temp\\Teams.exe and its registry/startup entries."
+  },
+  "executor": {
+    "alert_id": "EDR-2024-0116469",
+    "sandbox_name": "sentinel-detonation",
+    "detonation_status": "completed",
+    "blocked_connections": [
+      {
+        "dst_host": "45.153.160.49",
+        "dst_port": "53",
+        "deny_reason": "network unreachable \u2014 container running with --network none",
+        "raw": "[malware] beacon failed: [Errno 101] Network is unreachable"
+      }
+    ],
+    "sandbox_log_excerpt": "[malware] attempting beacon to 185.220.101.47:4444\n[malware] beacon failed: [Errno 101] Network is unreachable\n[malware] dropped persistence to /tmp/svchost32.exe\n",
+    "verdict": "suspicious",
+    "verdict_reason": "1 blocked outbound connection(s) observed but hash is unconfirmed."
+  },
+  "planner": {
+    "alert_id": "EDR-2024-0116469",
+    "action": "isolate_host",
+    "target": "SERVER-162",
+    "risk_score": 0.85,
+    "confidence": 0.92,
+    "rationale": "The host exhibits high-confidence persistence via a Run key, known malicious C2 IP, and MITRE techniques indicating active beaconing; despite sandbox network restrictions, the threat is confirmed and must be isolated immediately to stop C2 traffic and prevent lateral movement.",
+    "secondary_actions": [
+      {
+        "action": "block_ip",
+        "target": "45.153.160.49",
+        "reason": "Block the identified malicious C2 server to prevent any future beacon attempts from this or other compromised hosts."
+      }
+    ]
+  },
+  "supervisor": {
+    "alert_id": "EDR-2024-0116469",
+    "decision": "escalated",
+    "action": "isolate_host",
+    "target": "SERVER-162",
+    "risk_score": 0.85,
+    "threshold": 0.7,
+    "slack_notified": true,
+    "outcome": "Escalated to Slack for human approval. Risk score 0.85 >= threshold 0.7. Recommended: 'isolate_host' on 'SERVER-162'."
+  },
+  "_queue": {
+    "rank": 1,
+    "risk_score": 0.9257,
+    "band": "critical"
+  }
+}

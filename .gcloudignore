@@ -1,0 +1,36 @@
+# gcloud run deploy --source uploads this context to Cloud Build.
+# WITHOUT this file, gcloud falls back to .gitignore, which ignores *.parquet and
+# would strip dashboard/demo_data/ranked_queue.parquet from the upload (breaking the
+# Dockerfile COPY). This explicit list KEEPS dashboard/** and the benchmark artifacts
+# while still excluding secrets and noise.
+.git/
+.gitignore
+.venv/
+data/
+deep_dive_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.ndjson
+
+# secrets — never upload
+.env
+.env.*
+
+# pipeline code not needed by the display-only image
+agents/
+eval/
+ingest/
+clean/
+analyze/
+infra/
+docs/
+mock_data/
+sandbox_policy/
+scripts/
+nemoclaw.py
+pipeline.py
+requirements-gpu.txt
+benchmarks/cpu_vs_gpu.py
+.DS_Store
+.claude/
