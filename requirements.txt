@@ -1,2 +1,19 @@
+# --- Existing swarm (NIM inference + config) ---
 openai>=1.0.0
 python-dotenv>=1.0.0
+
+# --- Data intelligence pipeline (cross-platform: runs on Mac dev + T4 VM) ---
+# Google Cloud (Cloud Storage + BigQuery ONLY, per challenge constraints)
+google-cloud-storage>=2.14.0
+google-cloud-bigquery>=3.17.0
+db-dtypes>=1.2.0            # BigQuery -> pandas dtype support
+
+# CPU baseline data stack (GPU equivalents live in requirements-gpu.txt, VM only)
+pandas>=2.1.0
+pyarrow>=14.0.0            # parquet I/O for intermediate feature tables
+scikit-learn>=1.3.0
+numpy>=1.26.0
+
+# Visualization + dashboard
+matplotlib>=3.8.0
+streamlit>=1.30.0
